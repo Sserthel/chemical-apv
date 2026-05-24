@@ -6,9 +6,9 @@ import { useAuth } from "@/context/AuthContext";
 
 export function AuthStatusBar() {
   const pathname = usePathname();
-  const { user, loading, signOut, roleDisplay } = useAuth();
+  const { user, loading, signOut, roleDisplay, role } = useAuth();
 
-  if (pathname === "/login" || loading || !user) {
+  if (pathname === "/login" || !user) {
     return null;
   }
 
@@ -16,7 +16,9 @@ export function AuthStatusBar() {
     <div className="border-b border-work-blue/20 bg-work-navy/95 px-4 py-2 text-white">
       <div className="mx-auto flex max-w-lg items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <RoleBadge />
+          {role ? <RoleBadge role={role} /> : loading ? (
+            <span className="text-xs text-work-sky/70">Indlæser rolle…</span>
+          ) : null}
           <span className="truncate text-xs text-work-sky/90">{user.email}</span>
         </div>
         <button

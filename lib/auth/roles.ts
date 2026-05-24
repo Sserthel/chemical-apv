@@ -20,3 +20,20 @@ export function resolveRoleForEmail(email: string | null | undefined): UserRole 
 export function roleLabel(role: UserRole): string {
   return role === "admin" ? "Admin" : "Medarbejder";
 }
+
+/** Rolle fra profil – med fallback til admin-e-mail hvis profil mangler */
+export function resolveUserRole(
+  email: string | null | undefined,
+  profileRole: UserRole | null | undefined
+): UserRole | null {
+  if (profileRole) return profileRole;
+  if (!email) return null;
+  return resolveRoleForEmail(email);
+}
+
+export function isAdminUser(
+  email: string | null | undefined,
+  profileRole: UserRole | null | undefined
+): boolean {
+  return resolveUserRole(email, profileRole) === "admin";
+}

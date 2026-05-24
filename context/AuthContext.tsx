@@ -9,10 +9,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { roleLabel, type UserProfile, type UserRole } from "@/lib/auth/roles";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
+import {
+  isAdminUser,
+  resolveUserRole,
+  roleLabel,
+  type UserProfile,
+  type UserRole,
+} from "@/lib/auth/roles";
 import { ensureProfile } from "@/lib/profile";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 interface AuthContextValue {
   user: User | null;
@@ -35,31 +41,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const configured = isSupabaseConfigured();
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(configured);
+  const [loading, setLoading] = useState(true);
 
-  const loadProfile = useCallback(
-    async (client: SupabaseClient, nextUser: User | null) => {
-      if (!nextUser) {
-        setProfile(null);
-        return;
-      }
-      const nextProfile = await ensureProfile(client, nextUser);
-      setProfile(nextProfile);
-    },
-    []
-  );
+  const loadProfile = useCallback(async (nextUser: User | null) => {
+    if (!nextUser) {
+      setProfile(null);
+      return;
+    }
+    if (!configured) return;
+    const client = createClient();
+    const nextProfile = await ensureProfile(client, nextUser);
+    setProfile(nextProfile);
+  }, [configured]);
 
   useEffect(() => {
     if (!configured) {
@@ -68,28 +65,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const client = createClient();
-    setSupabase(client);
     let mounted = true;
 
     async function init() {
-      const {
-        data: { user: sessionUser },
-      } = await client.auth.getUser();
+      try {
+        const {
+          data: { user: sessionUser },
+        } = await client.auth.getUser();
 
-      if (!mounted) return;
-      setUser(sessionUser);
-      await loadProfile(client, sessionUser);
-      setLoading(false);
+        if (!mounted) return;
+        setUser(sessionUser);
+        await loadProfile(sessionUser);
+      } catch (err) {
+        console.warn("[auth] Session check failed:", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
 
     init();
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange(async (_event, session) => {
+    } = client.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
-      await loadProfile(client, nextUser);
+      await loadProfile(nextUser);
       setLoading(false);
     });
 
@@ -100,34 +101,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [configured, loadProfile]);
 
   const refreshProfile = useCallback(async () => {
-    if (!supabase) return;
+    if (!configured) return;
+    const client = createClient();
     const {
       data: { user: currentUser },
-    } = await supabase.auth.getUser();
+    } = await client.auth.getUser();
     setUser(currentUser);
-    await loadProfile(supabase, currentUser);
-  }, [loadProfile, supabase]);
+    await loadProfile(currentUser);
+  }, [configured, loadProfile]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      if (!supabase) {
+      if (!configured) {
         return { error: "Supabase er ikke konfigureret. Tilføj miljøvariabler." };
       }
-      const { error } = await supabase.auth.signInWithPassword({
+      const client = createClient();
+      const { error } = await client.auth.signInWithPassword({
         email,
         password,
       });
-      return { error: error?.message ?? null };
+      if (error) {
+        return { error: error.message };
+      }
+      await client.auth.getSession();
+      return { error: null };
     },
-    [supabase]
+    [configured]
   );
 
   const signUp = useCallback(
     async (email: string, password: string, fullName?: string) => {
-      if (!supabase) {
+      if (!configured) {
         return { error: "Supabase er ikke konfigureret. Tilføj miljøvariabler." };
       }
-      const { error } = await supabase.auth.signUp({
+      const client = createClient();
+      const { error } = await client.auth.signUp({
         email,
         password,
         options: {
@@ -136,18 +144,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       return { error: error?.message ?? null };
     },
-    [supabase]
+    [configured]
   );
 
   const signOut = useCallback(async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
+    if (configured) {
+      const client = createClient();
+      await client.auth.signOut();
     }
     setUser(null);
     setProfile(null);
-  }, [supabase]);
+  }, [configured]);
 
-  const role = profile?.role ?? null;
+  const role = resolveUserRole(user?.email, profile?.role);
+  const admin = isAdminUser(user?.email, profile?.role);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -156,8 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       loading,
       configured,
-      isAdmin: role === "admin",
-      isEmployee: role === "employee",
+      isAdmin: admin,
+      isEmployee: Boolean(user) && !admin,
       roleDisplay: role ? roleLabel(role) : "",
       signIn,
       signUp,
@@ -170,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       loading,
       configured,
+      admin,
       signIn,
       signUp,
       signOut,

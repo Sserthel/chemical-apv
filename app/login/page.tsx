@@ -1,14 +1,14 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
-  const { signIn, signUp, loading: authLoading, configured } = useAuth();
+  const authError = searchParams.get("error");
+  const { signIn, signUp, configured } = useAuth();
 
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -31,8 +31,9 @@ function LoginForm() {
         setSubmitting(false);
         return;
       }
-      router.replace(next);
-      router.refresh();
+      // Fuld sideindlæsning så middleware får session-cookies
+      window.location.href = next;
+      return;
     } else {
       const { error: signUpError } = await signUp(
         email.trim(),
@@ -64,6 +65,18 @@ function LoginForm() {
             Medarbejdere og administratorer logger ind med Supabase Auth.
           </p>
         </div>
+
+        {next.startsWith("/admin") && (
+          <p className="mb-4 rounded-lg bg-sky-50 px-3 py-2 text-center text-sm text-sky-900">
+            Log ind for at åbne administration.
+          </p>
+        )}
+
+        {authError === "auth" && (
+          <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-800">
+            Login mislykkedes. Prøv igen.
+          </p>
+        )}
 
         <div className="mb-4 flex rounded-xl border border-gray-200 bg-white p-1">
           <button
@@ -161,7 +174,7 @@ function LoginForm() {
 
           <button
             type="submit"
-            disabled={submitting || authLoading}
+            disabled={submitting || !configured}
             className="flex min-h-14 w-full items-center justify-center rounded-xl bg-work-navy text-lg font-semibold text-white active:bg-work-blue disabled:opacity-60"
           >
             {submitting
