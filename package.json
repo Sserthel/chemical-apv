@@ -1,0 +1,30 @@
+{
+  "name": "kemisk-apv",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "copy-ghs-symbols": "node scripts/copy-ghs-symbols.mjs",
+    "copy-iso7010-ppe": "node scripts/copy-iso7010-ppe.mjs"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "pdfjs-dist": "^5.7.284",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@ghs-hazard-pictograms/assets": "^1.1.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "^15.1.0",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
