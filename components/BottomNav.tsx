@@ -21,7 +21,7 @@ export function BottomNav() {
     ...baseLinks,
     isAdmin
       ? { href: "/admin", label: "Admin", icon: "⚙️" }
-      : { href: "/employee", label: "Medarbejder", icon: "👷" },
+      : { href: "/medarbejder", label: "Sikkerhed", icon: "👷" },
   ];
 
   return (

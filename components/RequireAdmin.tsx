@@ -10,7 +10,7 @@ interface RequireAdminProps {
 
 export function RequireAdmin({
   children,
-  backHref = "/employee",
+  backHref = "/medarbejder",
 }: RequireAdminProps) {
   const { loading, isAdmin } = useAuth();
 
@@ -27,7 +27,7 @@ export function RequireAdmin({
       <AccessDenied
         message="Du har ikke adgang til denne side."
         backHref={backHref}
-        backLabel="Til medarbejder"
+        backLabel="Til medarbejdervisning"
       />
     );
   }

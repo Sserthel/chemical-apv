@@ -34,9 +34,6 @@ export default function HomePage() {
         <BigButton href="/medarbejder" icon="👷" variant="primary">
           Medarbejdervisning
         </BigButton>
-        <BigButton href="/employee" icon="📋" variant="secondary">
-          Medarbejder-overblik
-        </BigButton>
         {isAdmin && (
           <BigButton href="/admin" icon="⚙️" variant="outline">
             Administration

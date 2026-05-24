@@ -33,8 +33,8 @@ export default function AdminLayout({
     return (
       <AccessDenied
         message="Du har ikke adgang til denne side."
-        backHref="/employee"
-        backLabel="Til medarbejder"
+        backHref="/medarbejder"
+        backLabel="Til medarbejdervisning"
       />
     );
   }

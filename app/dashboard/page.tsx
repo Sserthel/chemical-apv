@@ -10,7 +10,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(isAdmin ? "/admin" : "/employee");
+    router.replace(isAdmin ? "/admin" : "/medarbejder");
   }, [loading, isAdmin, router]);
 
   return (
