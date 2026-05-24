@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { AuthStatusBar } from "@/components/AuthStatusBar";
 import { BottomNav } from "@/components/BottomNav";
-import { ChemicalStoreProvider } from "@/context/ChemicalStoreContext";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,10 +24,11 @@ export default function RootLayout({
   return (
     <html lang="da">
       <body className="min-h-screen pb-24">
-        <ChemicalStoreProvider>
+        <Providers>
+          <AuthStatusBar />
           <main className="mx-auto min-h-screen max-w-lg">{children}</main>
           <BottomNav />
-        </ChemicalStoreProvider>
+        </Providers>
       </body>
     </html>
   );

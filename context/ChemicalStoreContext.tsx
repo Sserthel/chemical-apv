@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { mergeChemicals, getApvForId, searchAll } from "@/lib/chemicals";
+import { ensureMockRiskAssessmentsSeeded } from "@/lib/mock-risk-assessments";
 import {
   deleteRiskAssessment,
   loadRiskAssessments,
@@ -46,6 +47,7 @@ export function ChemicalStoreProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    ensureMockRiskAssessmentsSeeded();
     setUploads(loadUploads());
     setRiskAssessments(loadRiskAssessments());
     setHydrated(true);

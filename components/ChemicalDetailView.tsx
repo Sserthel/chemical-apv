@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { GhsSymbolGrid } from "@/components/GhsSymbolGrid";
 import { PpeSymbolGrid } from "@/components/PpeSymbolGrid";
@@ -8,6 +10,7 @@ import { PriorityBadge } from "@/components/PriorityBadge";
 import { RiskBadge } from "@/components/RiskBadge";
 import { SdsInfoPanel } from "@/components/SdsInfoPanel";
 import { useChemicalStore } from "@/context/ChemicalStoreContext";
+import { useAuth } from "@/context/AuthContext";
 import { buildSafetyContext } from "@/lib/safety-symbols";
 
 interface ChemicalDetailViewProps {
@@ -15,6 +18,8 @@ interface ChemicalDetailViewProps {
 }
 
 export function ChemicalDetailView({ id }: ChemicalDetailViewProps) {
+  const router = useRouter();
+  const { isAdmin, loading: authLoading } = useAuth();
   const { hydrated, getChemicalById, getPublishedRiskAssessment } =
     useChemicalStore();
   const chemical = getChemicalById(id);
@@ -24,9 +29,23 @@ export function ChemicalDetailView({ id }: ChemicalDetailViewProps) {
     ? buildSafetyContext(chemical, publishedRa)
     : null;
 
-  if (!hydrated) {
+  useEffect(() => {
+    if (!authLoading && !isAdmin && chemical) {
+      router.replace(`/medarbejder/${id}`);
+    }
+  }, [authLoading, isAdmin, chemical, id, router]);
+
+  if (!hydrated || authLoading) {
     return (
       <div className="px-4 py-12 text-center text-gray-600">Indlæser…</div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="px-4 py-12 text-center text-gray-600">
+        Omdirigerer til medarbejderinstruktion…
+      </div>
     );
   }
 
@@ -155,10 +174,10 @@ export function ChemicalDetailView({ id }: ChemicalDetailViewProps) {
 
         <div className="flex flex-col gap-3">
           <Link
-            href={`/kemikalie/${chemical.id}/sikkerhed`}
+            href={`/medarbejder/${chemical.id}`}
             className="flex min-h-14 items-center justify-center rounded-2xl bg-emerald-700 text-lg font-semibold text-white active:bg-emerald-800"
           >
-            Sikkerhedsinstruktion
+            Åbn medarbejderinstruktion
           </Link>
           <Link
             href={`/kemikalie/${chemical.id}`}

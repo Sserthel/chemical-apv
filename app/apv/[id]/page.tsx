@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { ApvView } from "@/components/ApvView";
+import { RequireAdmin } from "@/components/RequireAdmin";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -9,5 +10,9 @@ interface PageProps {
 
 export default function ApvPage({ params }: PageProps) {
   const { id } = use(params);
-  return <ApvView id={id} />;
+  return (
+    <RequireAdmin>
+      <ApvView id={id} />
+    </RequireAdmin>
+  );
 }

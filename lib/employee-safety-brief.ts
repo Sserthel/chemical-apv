@@ -1,4 +1,3 @@
-import type { ChemicalApv } from "./types";
 import type { ChemicalRiskAssessment } from "./risk-assessment-types";
 import type { Chemical } from "./types";
 import { SDS_MISSING } from "./sds-extract";
@@ -11,47 +10,55 @@ import type { RiskBadgeVariant } from "./risk-visual";
 
 export interface EmployeeSafetyBrief {
   productName: string;
-  location: string;
   workplace: string;
   riskLevel: RiskBadgeVariant;
   ghs: GhsSymbolItem[];
   ppe: PpeSymbolItem[];
-  keyHazards: string[];
-  keyRules: string[];
-  instruction: string;
-  firstAid: string[];
-  spill: string;
-  emergencyContact: string;
+  ppeLabels: string[];
+  topHazards: string[];
+  mustDo: string[];
+  mustNot: string[];
+  attentions: string[];
+  accidentFirstAid: string[];
+  accidentSpill: string;
+  stopRules: string[];
   contactPerson: string;
-  hasPublishedAssessment: boolean;
+  emergencyPhone: string;
+  sdsHref: string;
+  sdsIsExternal: boolean;
 }
 
 const MISSING = "Mangler oplysninger";
 
 function clean(text: string | undefined): string {
   if (!text?.trim() || text.trim() === SDS_MISSING) return "";
-  return text.replace(/\[SDS[^\]]*\]\s*/gi, "").replace(/\[Arbejdsopgave\]\s*/gi, "").trim();
+  return text
+    .replace(/\[SDS[^\]]*\]\s*/gi, "")
+    .replace(/\[Arbejdsopgave\]\s*/gi, "")
+    .replace(/\[Forslag[^\]]*\]\s*/gi, "")
+    .trim();
 }
 
-function short(text: string, max = 120): string {
+function short(text: string, max = 100): string {
   const t = clean(text);
   if (!t) return "";
   const sentence = t.match(/^[^.!?]+[.!?]?/)?.[0]?.trim() ?? t;
   return sentence.length > max ? `${sentence.slice(0, max - 1)}…` : sentence;
 }
 
-function sectionContent(
-  assessment: ChemicalRiskAssessment | undefined,
-  key: string
-): string {
-  return assessment?.sections.find((s) => s.key === key)?.content ?? "";
+function sectionLines(assessment: ChemicalRiskAssessment, key: string): string[] {
+  const content = assessment.sections.find((s) => s.key === key)?.content ?? "";
+  return content
+    .split("\n")
+    .map(clean)
+    .filter(Boolean);
 }
 
-function uniqueNonEmpty(items: string[], limit: number): string[] {
+function unique(items: string[], limit: number): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const raw of items) {
-    const t = short(raw, 100);
+  for (const item of items) {
+    const t = short(item, 90);
     if (!t || seen.has(t)) continue;
     seen.add(t);
     out.push(t);
@@ -60,162 +67,199 @@ function uniqueNonEmpty(items: string[], limit: number): string[] {
   return out;
 }
 
-function hazardLines(chemical: Chemical, assessment?: ChemicalRiskAssessment): string[] {
-  const sds = chemical.sdsExtracted ?? assessment?.sdsData;
+const H_ATTENTION: [RegExp, string][] = [
+  [/H314|H318/, "Undgå stænk og kontakt med øjne"],
+  [/H315|H317/, "Undgå hudkontakt"],
+  [/H225|H226|H220/, "Hold væk fra varme, gnister og åben ild"],
+  [/H332|H335|H336/, "Undgå indånding af dampe/aerosoler"],
+  [/H290/, "Undgå kontakt med metaloverflader"],
+  [/H400|H410/, "Undgå udledning til miljø"],
+];
+
+function topHazards(chemical: Chemical, assessment: ChemicalRiskAssessment): string[] {
+  const sds = assessment.sdsData;
   const lines: string[] = [];
 
-  if (sds?.signalWord && sds.signalWord !== SDS_MISSING) {
-    lines.push(`Signalord: ${sds.signalWord}`);
+  if (sds.signalWord && sds.signalWord !== SDS_MISSING) {
+    lines.push(`${sds.signalWord} – ${short(chemical.riskDescription, 70) || "fare"}`);
   }
 
-  for (const h of chemical.hStatements.slice(0, 4)) {
+  for (const h of chemical.hStatements.slice(0, 3)) {
     lines.push(h);
   }
 
   if (lines.length < 3 && chemical.riskDescription) {
-    lines.push(short(chemical.riskDescription, 90));
+    lines.push(short(chemical.riskDescription, 80));
   }
 
-  if (assessment?.riskCalculation?.criticalWarnings.length) {
-    lines.push(short(assessment.riskCalculation.criticalWarnings[0], 90));
-  }
-
-  return uniqueNonEmpty(lines, 4);
+  return unique(lines, 3);
 }
 
-function ruleLines(
-  chemical: Chemical,
-  apv: ChemicalApv | undefined,
-  assessment?: ChemicalRiskAssessment
-): string[] {
+function attentions(chemical: Chemical, assessment: ChemicalRiskAssessment): string[] {
   const lines: string[] = [];
-
-  for (const p of (chemical.pStatements ?? assessment?.sdsData.pStatements ?? []).slice(0, 3)) {
-    lines.push(p);
+  for (const h of chemical.hStatements) {
+    for (const [re, msg] of H_ATTENTION) {
+      if (re.test(h) && !lines.includes(msg)) lines.push(msg);
+    }
   }
 
-  if (apv?.measures) {
-    lines.push(...apv.measures.slice(0, 3));
+  const farlige = sectionLines(assessment, "farlige_egenskaber");
+  lines.push(...farlige.map((l) => short(l, 80)));
+
+  if (assessment.workTaskData.sprayAerosol === "ja") {
+    lines.push("Sørg for ventilation ved spray/aerosol");
   }
 
-  const foranst = sectionContent(assessment, "foranstaltninger");
-  if (foranst) {
-    lines.push(
-      ...foranst
-        .split("\n")
-        .map((l) => clean(l))
-        .filter(Boolean)
-        .slice(0, 2)
-    );
-  }
-
-  return uniqueNonEmpty(lines, 4);
+  return unique(lines, 4);
 }
 
-function instructionLine(
-  chemical: Chemical,
-  apv: ChemicalApv | undefined,
-  assessment?: ChemicalRiskAssessment
-): string {
-  const med = sectionContent(assessment, "medarbejderinstruktion");
-  if (med) {
-    const lines = med.split("\n").map(clean).filter(Boolean);
-    if (lines.length >= 2) return `${lines[1]} ${lines[2] ?? ""}`.trim();
-    if (lines.length === 1) return lines[0];
-  }
-
-  const work = assessment?.workTaskData.eksisterendeInstruktion;
-  if (work?.trim()) return short(work, 160);
-
-  if (apv?.summary) return short(apv.summary, 160);
-
-  if (apv?.measures[0]) return apv.measures[0];
-
-  return "Følg SDS og lokale procedurer. Brug angivne værnemidler.";
-}
-
-function firstAidLines(
-  chemical: Chemical,
-  assessment?: ChemicalRiskAssessment
+function mustDoList(
+  assessment: ChemicalRiskAssessment,
+  ppeLabels: string[]
 ): string[] {
-  const fa = chemical.sdsExtracted?.firstAid ?? assessment?.sdsData.firstAid;
-  if (!fa) return [MISSING];
+  const lines: string[] = [...ppeLabels];
 
-  return uniqueNonEmpty(
+  lines.push(...sectionLines(assessment, "foranstaltninger").slice(0, 3));
+  lines.push(...sectionLines(assessment, "vaernemidler").slice(0, 2));
+
+  const work = assessment.workTaskData;
+  if (work.vaernemidler?.trim()) {
+    lines.push(...work.vaernemidler.split(/[,;]/).map((s) => s.trim()));
+  }
+  if (work.ventilation?.trim()) {
+    lines.push(`Ventilation: ${short(work.ventilation, 60)}`);
+  }
+
+  const med = sectionLines(assessment, "medarbejderinstruktion");
+  if (med[1]) lines.push(med[1]);
+
+  return unique(lines, 5);
+}
+
+function mustNotList(chemical: Chemical, assessment: ChemicalRiskAssessment): string[] {
+  const pList = chemical.pStatements?.length
+    ? chemical.pStatements
+    : assessment.sdsData.pStatements;
+
+  const lines: string[] = [];
+  for (const p of pList.slice(0, 4)) {
+    if (/^P2[0-9]{2}/i.test(p)) {
+      lines.push(`Følg ${p}`);
+    }
+  }
+
+  lines.push("Spis, drik og ryg ikke ved arbejdet");
+  lines.push("Bland ikke med andre produkter uden instruktion");
+
+  if (assessment.workTaskData.opvarmning === "ja") {
+    lines.push("Opvarm ikke uden godkendt procedure");
+  }
+
+  return unique(lines, 4);
+}
+
+function stopRulesList(chemical: Chemical, assessment: ChemicalRiskAssessment): string[] {
+  const rules = [
+    "Der mangler værnemidler",
+    "Du er i tvivl om sikker brug",
+  ];
+
+  const hasH314 = chemical.hStatements.some((h) => /H314/i.test(h));
+  if (hasH314) {
+    rules.unshift("Der ikke er adgang til øjenskyl ved ætsende produkt");
+  }
+
+  for (const gap of assessment.riskCalculation?.criticalGaps ?? []) {
+    if (gap.priority === "P1") {
+      rules.push(short(gap.message, 80));
+    }
+  }
+
+  return unique(rules, 5);
+}
+
+function firstAidList(assessment: ChemicalRiskAssessment): string[] {
+  const fa = assessment.sdsData.firstAid;
+  return unique(
     [
-      fa.eyes !== SDS_MISSING ? `Øjne: ${short(fa.eyes, 80)}` : "",
-      fa.skin !== SDS_MISSING ? `Hud: ${short(fa.skin, 80)}` : "",
-      fa.inhalation !== SDS_MISSING ? `Indånding: ${short(fa.inhalation, 80)}` : "",
+      fa.eyes !== SDS_MISSING ? `Øjne: ${short(fa.eyes, 85)}` : "",
+      fa.skin !== SDS_MISSING ? `Hud: ${short(fa.skin, 85)}` : "",
+      fa.inhalation !== SDS_MISSING ? `Indånding: ${short(fa.inhalation, 85)}` : "",
     ],
     3
   );
 }
 
-function spillLine(
-  chemical: Chemical,
-  apv: ChemicalApv | undefined,
-  assessment?: ChemicalRiskAssessment
-): string {
-  const spill =
-    chemical.sdsExtracted?.spillResponse ??
-    assessment?.sdsData.spillResponse ??
-    assessment?.workTaskData.affaldSpild;
-
-  if (spill && spill !== SDS_MISSING) return short(spill, 140);
-
-  const spillFromApv = apv?.sections
-    .flatMap((s) => s.items)
-    .find((i) => /spild/i.test(i));
-  if (spillFromApv) return spillFromApv;
-
-  return "Inddæm spild. Brug passende absorberingsmateriale. Spild i godkendt affald.";
+function spillText(assessment: ChemicalRiskAssessment): string {
+  const spill = assessment.sdsData.spillResponse;
+  if (spill && spill !== SDS_MISSING) return short(spill, 120);
+  const work = assessment.workTaskData.affaldSpild;
+  if (work?.trim()) return short(work, 120);
+  return "Afspær området. Brug absorberingsmateriale. Kontakt ansvarlig.";
 }
 
-function emergencyBlock(
-  chemical: Chemical,
-  apv: ChemicalApv | undefined,
-  assessment?: ChemicalRiskAssessment
-): { emergency: string; contact: string } {
-  const supplier = chemical.sdsExtracted?.supplier ?? assessment?.sdsData.supplier;
-  const emergency =
-    supplier && supplier !== SDS_MISSING
-      ? `112 ved livstruende · Giftlinjen 82 12 12 12`
-      : "112 ved livstruende · Giftlinjen 82 12 12 12";
-
-  const contact =
-    apv?.assessedBy?.trim() ||
-    assessment?.workTaskData.afdeling?.trim() ||
-    "Kontakt nærmeste leder / arbejdsmiljøansvarlig";
-
-  return { emergency, contact };
+function ppeLabelsFromItems(ppe: PpeSymbolItem[], assessment: ChemicalRiskAssessment): string[] {
+  const labels = ppe.map((p) => p.label.replace(/ påbudt$/i, ""));
+  const sds = assessment.sdsData.ppe;
+  if (sds.handProtection !== SDS_MISSING) {
+    labels.push(short(sds.handProtection, 50));
+  }
+  if (sds.eyeProtection !== SDS_MISSING) {
+    labels.push(short(sds.eyeProtection, 50));
+  }
+  return unique(labels, 5);
 }
 
+function sdsLink(chemical: Chemical): { href: string; external: boolean } {
+  if (chemical.source === "upload") {
+    return { href: `/kemikalie/${chemical.id}/sds`, external: false };
+  }
+  return { href: chemical.sdsUrl, external: true };
+}
+
+/** Kun data fra publiceret kemisk risikovurdering (APV). */
 export function buildEmployeeSafetyBrief(
   chemical: Chemical,
-  assessment?: ChemicalRiskAssessment | null,
-  apv?: ChemicalApv | null
+  assessment: ChemicalRiskAssessment
 ): EmployeeSafetyBrief {
-  const safety = buildSafetyContext(chemical, assessment ?? undefined);
-  const { emergency, contact } = emergencyBlock(
-    chemical,
-    apv ?? undefined,
-    assessment ?? undefined
-  );
+  if (assessment.status !== "publiceret") {
+    throw new Error("APV er ikke publiceret");
+  }
+
+  const safety = buildSafetyContext(chemical, assessment);
+  const ppeLabels = ppeLabelsFromItems(safety.ppeRequired, assessment);
+  const sds = sdsLink(chemical);
+
+  const contact =
+    assessment.workTaskData.afdeling?.trim() ||
+    sectionLines(assessment, "godkendelse")[0] ||
+    "Kontakt nærmeste leder / arbejdsmiljøansvarlig";
 
   return {
-    productName: chemical.productName,
-    location: chemical.location,
-    workplace: apv?.workplace ?? assessment?.workTaskData.afdeling ?? chemical.location,
+    productName: assessment.productName,
+    workplace:
+      assessment.workTaskData.afdeling?.trim() ||
+      chemical.location,
     riskLevel: safety.riskLevel,
     ghs: safety.ghs,
     ppe: safety.ppeRequired,
-    keyHazards: hazardLines(chemical, assessment ?? undefined),
-    keyRules: ruleLines(chemical, apv ?? undefined, assessment ?? undefined),
-    instruction: instructionLine(chemical, apv ?? undefined, assessment ?? undefined),
-    firstAid: firstAidLines(chemical, assessment ?? undefined),
-    spill: spillLine(chemical, apv ?? undefined, assessment ?? undefined),
-    emergencyContact: emergency,
+    ppeLabels,
+    topHazards: topHazards(chemical, assessment),
+    mustDo: mustDoList(assessment, ppeLabels),
+    mustNot: mustNotList(chemical, assessment),
+    attentions: attentions(chemical, assessment),
+    accidentFirstAid: firstAidList(assessment),
+    accidentSpill: spillText(assessment),
+    stopRules: stopRulesList(chemical, assessment),
     contactPerson: contact,
-    hasPublishedAssessment: !!assessment,
+    emergencyPhone: "112 ved livstruende · Giftlinjen 82 12 12 12",
+    sdsHref: sds.href,
+    sdsIsExternal: sds.external,
   };
+}
+
+export function isPublishedForEmployees(
+  assessment: ChemicalRiskAssessment | null | undefined
+): assessment is ChemicalRiskAssessment {
+  return assessment?.status === "publiceret";
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { GhsSymbolGrid } from "@/components/GhsSymbolGrid";
@@ -9,34 +8,22 @@ import { RiskBadge } from "@/components/RiskBadge";
 import { RiskMatrixPanel } from "@/components/RiskMatrixPanel";
 import { useChemicalStore } from "@/context/ChemicalStoreContext";
 import { buildSafetyContext } from "@/lib/safety-symbols";
-import { useHseAccess } from "@/lib/hse-access";
-import { useRouter } from "next/navigation";
-
 interface ApvViewProps {
   id: string;
 }
 
 export function ApvView({ id }: ApvViewProps) {
-  const router = useRouter();
-  const hse = useHseAccess();
   const { hydrated, getChemicalById, getApvByChemicalId, getPublishedRiskAssessment } =
     useChemicalStore();
   const chemical = getChemicalById(id);
   const apv = getApvByChemicalId(id);
   const publishedRa = getPublishedRiskAssessment(id);
 
-  useEffect(() => {
-    if (hydrated && !hse) {
-      router.replace(`/kemikalie/${id}/sikkerhed`);
-    }
-  }, [hydrated, hse, id, router]);
-
-  if (!hydrated || !hse) {
+  if (!hydrated) {
     return (
       <div className="px-4 py-12 text-center text-gray-600">Indlæser…</div>
     );
   }
-
   if (!chemical || !apv) {
     return (
       <div className="px-4 py-12 text-center">
@@ -59,8 +46,8 @@ export function ApvView({ id }: ApvViewProps) {
     <div>
       <Header
         title="Kemisk APV (HSE)"
-        backHref={`/kemikalie/${id}/sikkerhed`}
-        backLabel="Til sikkerhedsinstruktion"
+        backHref={`/medarbejder/${id}`}
+        backLabel="Til medarbejderinstruktion"
       />
       <div className="space-y-4 px-4 py-4">
         <div className="rounded-2xl bg-work-navy p-5 text-white">

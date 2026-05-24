@@ -5,19 +5,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { useChemicalStore } from "@/context/ChemicalStoreContext";
-import { useHseAccess } from "@/lib/hse-access";
+import { useAuth } from "@/context/AuthContext";
 
 interface RiskAssessmentEmployeeViewProps {
   chemicalId: string;
 }
 
-/** Fuld risikovurdering – kun HSE/admin (?full=1). Medarbejdere sendes til /sikkerhed. */
+/** Fuld risikovurdering – kun HSE/admin (?full=1). Medarbejdere sendes til /medarbejder. */
 export function RiskAssessmentEmployeeView({
   chemicalId,
 }: RiskAssessmentEmployeeViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const hse = useHseAccess();
+  const { isAdmin } = useAuth();
   const full = searchParams.get("full") === "1";
   const { hydrated, getChemicalById, getPublishedRiskAssessment } =
     useChemicalStore();
@@ -25,12 +25,12 @@ export function RiskAssessmentEmployeeView({
   const assessment = getPublishedRiskAssessment(chemicalId);
 
   useEffect(() => {
-    if (hydrated && (!full || !hse)) {
-      router.replace(`/kemikalie/${chemicalId}/sikkerhed`);
+    if (hydrated && (!full || !isAdmin)) {
+      router.replace(`/medarbejder/${chemicalId}`);
     }
-  }, [hydrated, full, hse, chemicalId, router]);
+  }, [hydrated, full, isAdmin, chemicalId, router]);
 
-  if (!hydrated || !full || !hse) {
+  if (!hydrated || !full || !isAdmin) {
     return <div className="px-4 py-12 text-center text-gray-600">Indlæser…</div>;
   }
 
@@ -50,12 +50,12 @@ export function RiskAssessmentEmployeeView({
 
   return (
     <div>
-      <Header title="Fuld risikovurdering (HSE)" backHref={`/kemikalie/${chemicalId}/sikkerhed`} />
+      <Header title="Fuld risikovurdering (HSE)" backHref={`/medarbejder/${chemicalId}`} />
       <div className="space-y-4 px-4 py-4">
         <p className="rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-700">
           Denne side er til faglig gennemgang. Medarbejdere skal bruge{" "}
-          <Link href={`/kemikalie/${chemicalId}/sikkerhed`} className="text-work-blue underline">
-            sikkerhedsinstruktionen
+          <Link href={`/medarbejder/${chemicalId}`} className="text-work-blue underline">
+            medarbejderinstruktionen
           </Link>
           .
         </p>

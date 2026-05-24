@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import ExtractedSdsView from "@/components/ExtractedSdsView";
+import { RequireAdmin } from "@/components/RequireAdmin";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -9,5 +10,9 @@ interface PageProps {
 
 export default function ExtractedPage({ params }: PageProps) {
   const { id } = use(params);
-  return <ExtractedSdsView id={id} />;
+  return (
+    <RequireAdmin>
+      <ExtractedSdsView id={id} />
+    </RequireAdmin>
+  );
 }

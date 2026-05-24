@@ -1,6 +1,7 @@
 "use client";
 
 import { use } from "react";
+import { RequireAdmin } from "@/components/RequireAdmin";
 import { SdsTextView } from "@/components/SdsTextView";
 
 interface PageProps {
@@ -9,5 +10,9 @@ interface PageProps {
 
 export default function SdsTextPage({ params }: PageProps) {
   const { id } = use(params);
-  return <SdsTextView id={id} />;
+  return (
+    <RequireAdmin>
+      <SdsTextView id={id} />
+    </RequireAdmin>
+  );
 }

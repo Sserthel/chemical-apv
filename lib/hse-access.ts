@@ -1,21 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
-const HSE_KEY = "kemisk-apv-hse";
-
+/** Erstattet af Supabase Auth – beholdt for bagudkompatibilitet */
 export function enableHseAccess(): void {
-  if (typeof window !== "undefined") {
-    sessionStorage.setItem(HSE_KEY, "1");
-  }
+  // ingen effekt
 }
 
 export function useHseAccess(): boolean {
-  const [hse, setHse] = useState(false);
+  const { isAdmin } = useAuth();
+  return isAdmin;
+}
 
-  useEffect(() => {
-    setHse(sessionStorage.getItem(HSE_KEY) === "1");
-  }, []);
-
-  return hse;
+export function useIsAdmin(): boolean {
+  const { isAdmin } = useAuth();
+  return isAdmin;
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { RiskAssessmentGenerator } from "@/components/RiskAssessmentGenerator";
@@ -9,20 +8,19 @@ import { SdsUpload } from "@/components/SdsUpload";
 import { useChemicalStore } from "@/context/ChemicalStoreContext";
 import { STATUS_LABELS } from "@/lib/risk-assessment-types";
 import { riskLabels } from "@/lib/risk";
-import { enableHseAccess } from "@/lib/hse-access";
+import { RoleBadge } from "@/components/RoleBadge";
 
 export default function AdminPage() {
   const { hydrated, allChemicals, uploads, deleteUpload, riskAssessments } =
     useChemicalStore();
   const mockCount = allChemicals.length - uploads.length;
 
-  useEffect(() => {
-    enableHseAccess();
-  }, []);
-
   return (
     <div>
-      <Header title="Administration" backHref="/" />
+      <Header title="Administration" backHref="/dashboard" />
+      <div className="px-4 pt-3">
+        <RoleBadge role="admin" />
+      </div>
       <div className="space-y-4 px-4 py-4">
         <SdsOnlineSearch />
 
