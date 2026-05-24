@@ -17,7 +17,7 @@ export default function AdminPage() {
 
   return (
     <div>
-      <Header title="Administration" backHref="/dashboard" />
+      <Header title="Administration" backHref="/" />
       <div className="px-4 pt-3">
         <RoleBadge role="admin" />
       </div>

@@ -2,6 +2,7 @@
 
 import { AccessDenied } from "@/components/AccessDenied";
 import { getAuthEmail } from "@/lib/auth/email";
+import { isAdminUser } from "@/lib/auth/roles";
 import { useAuth } from "@/context/AuthContext";
 
 export default function AdminLayout({
@@ -9,10 +10,11 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { loading, isAdmin, user, profile, roleDisplay } = useAuth();
+  const { loading, user, profile, roleDisplay } = useAuth();
   const authEmail = getAuthEmail(user, profile);
+  const admin = isAdminUser(authEmail, profile?.role);
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-gray-600">
         Indlæser…
@@ -31,7 +33,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!isAdmin) {
+  if (!admin) {
     return (
       <AccessDenied
         message={`Du har ikke adgang til administration. Logget ind som ${authEmail ?? "ukendt e-mail"}.`}

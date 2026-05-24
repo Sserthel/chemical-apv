@@ -42,21 +42,51 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const SESSION_TIMEOUT_MS = 5000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`[auth] Timeout: ${label}`);
+          resolve(null);
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const configured = isSupabaseConfigured();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(configured);
 
   const loadProfile = useCallback(async (nextUser: User | null) => {
-    if (!nextUser) {
+    if (!nextUser || !configured) {
       setProfile(null);
       return;
     }
-    if (!configured) return;
-    const client = createClient();
-    const nextProfile = await ensureProfile(client, nextUser);
-    setProfile(nextProfile);
+    try {
+      const client = createClient();
+      const nextProfile = await withTimeout(
+        ensureProfile(client, nextUser),
+        SESSION_TIMEOUT_MS,
+        "profile load"
+      );
+      if (nextProfile) setProfile(nextProfile);
+    } catch (err) {
+      console.warn("[auth] Profile load failed:", err);
+    }
   }, [configured]);
 
   useEffect(() => {
@@ -68,27 +98,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const client = createClient();
     let mounted = true;
 
+    const safetyTimer = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, SESSION_TIMEOUT_MS);
+
     async function init() {
       try {
-        const {
-          data: { session },
-        } = await client.auth.getSession();
+        const sessionResult = await withTimeout(
+          client.auth.getSession(),
+          SESSION_TIMEOUT_MS,
+          "getSession"
+        );
 
-        let sessionUser = session?.user ?? null;
+        let sessionUser = sessionResult?.data.session?.user ?? null;
+
         if (!sessionUser) {
-          const {
-            data: { user: fetchedUser },
-          } = await client.auth.getUser();
-          sessionUser = fetchedUser;
+          const userResult = await withTimeout(
+            client.auth.getUser(),
+            SESSION_TIMEOUT_MS,
+            "getUser"
+          );
+          sessionUser = userResult?.data.user ?? null;
         }
 
         if (!mounted) return;
         setUser(sessionUser);
-        setLoading(false);
-        await loadProfile(sessionUser);
+        void loadProfile(sessionUser);
       } catch (err) {
         console.warn("[auth] Session check failed:", err);
       } finally {
+        clearTimeout(safetyTimer);
         if (mounted) setLoading(false);
       }
     }
@@ -97,15 +136,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
-      const nextUser = session?.user ?? null;
-      setUser(nextUser);
-      setLoading(false);
-      await loadProfile(nextUser);
-    });
+    } = client.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, session: Session | null) => {
+        const nextUser = session?.user ?? null;
+        setUser(nextUser);
+        setLoading(false);
+        void loadProfile(nextUser);
+      }
+    );
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, [configured, loadProfile]);
@@ -113,9 +155,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(async () => {
     if (!configured) return;
     const client = createClient();
-    const {
-      data: { user: currentUser },
-    } = await client.auth.getUser();
+    const result = await withTimeout(
+      client.auth.getUser(),
+      SESSION_TIMEOUT_MS,
+      "refresh getUser"
+    );
+    const currentUser = result?.data.user ?? null;
     setUser(currentUser);
     await loadProfile(currentUser);
   }, [configured, loadProfile]);
