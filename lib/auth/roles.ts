@@ -11,7 +11,9 @@ export interface UserProfile {
 }
 
 export function resolveRoleForEmail(email: string | null | undefined): UserRole {
-  if (email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return "employee";
+  if (normalized === ADMIN_EMAIL.toLowerCase()) {
     return "admin";
   }
   return "employee";

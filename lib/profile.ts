@@ -1,14 +1,20 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { getAuthEmail } from "@/lib/auth/email";
 import {
   resolveRoleForEmail,
   type UserProfile,
   type UserRole,
 } from "@/lib/auth/roles";
 
+function normalizeRole(value: unknown): UserRole {
+  const role = String(value ?? "").trim().toLowerCase();
+  return role === "admin" ? "admin" : "employee";
+}
+
 function profileFromUser(user: User, role: UserRole): UserProfile {
   return {
     id: user.id,
-    email: user.email ?? null,
+    email: getAuthEmail(user) ?? null,
     full_name: (user.user_metadata?.full_name as string | undefined) ?? null,
     role,
     created_at: new Date().toISOString(),
@@ -32,7 +38,7 @@ export async function fetchProfile(
   if (!data) return null;
   return {
     ...data,
-    role: data.role as UserRole,
+    role: normalizeRole(data.role),
   };
 }
 
@@ -40,14 +46,18 @@ export async function ensureProfile(
   supabase: SupabaseClient,
   user: User
 ): Promise<UserProfile | null> {
-  const expectedRole = resolveRoleForEmail(user.email);
   const existing = await fetchProfile(supabase, user.id);
+  const email = getAuthEmail(user, existing);
+  const expectedRole = resolveRoleForEmail(email);
 
   if (existing) {
-    if (existing.role !== expectedRole && user.email) {
+    if (existing.role !== expectedRole) {
       const { data: updated, error } = await supabase
         .from("profiles")
-        .update({ role: expectedRole, email: user.email })
+        .update({
+          role: expectedRole,
+          ...(email ? { email } : {}),
+        })
         .eq("id", user.id)
         .select("id, email, full_name, role, created_at")
         .maybeSingle();
@@ -56,17 +66,19 @@ export async function ensureProfile(
         return profileFromUser(user, expectedRole);
       }
       if (updated) {
-        return { ...updated, role: updated.role as UserRole };
+        return { ...updated, role: normalizeRole(updated.role) };
       }
     }
-    return existing;
+    return existing.role === expectedRole
+      ? existing
+      : { ...existing, role: expectedRole };
   }
 
   const { data, error } = await supabase
     .from("profiles")
     .insert({
       id: user.id,
-      email: user.email ?? null,
+      email: email ?? null,
       full_name: (user.user_metadata?.full_name as string | undefined) ?? null,
       role: expectedRole,
     })
@@ -80,5 +92,5 @@ export async function ensureProfile(
     return profileFromUser(user, expectedRole);
   }
 
-  return { ...data, role: data.role as UserRole };
+  return { ...data, role: normalizeRole(data.role) };
 }

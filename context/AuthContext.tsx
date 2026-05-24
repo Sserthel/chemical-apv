@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
+import { getAuthEmail } from "@/lib/auth/email";
 import {
   isAdminUser,
   resolveUserRole,
@@ -70,11 +71,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function init() {
       try {
         const {
-          data: { user: sessionUser },
-        } = await client.auth.getUser();
+          data: { session },
+        } = await client.auth.getSession();
+
+        let sessionUser = session?.user ?? null;
+        if (!sessionUser) {
+          const {
+            data: { user: fetchedUser },
+          } = await client.auth.getUser();
+          sessionUser = fetchedUser;
+        }
 
         if (!mounted) return;
         setUser(sessionUser);
+        setLoading(false);
         await loadProfile(sessionUser);
       } catch (err) {
         console.warn("[auth] Session check failed:", err);
@@ -90,8 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = client.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
-      await loadProfile(nextUser);
       setLoading(false);
+      await loadProfile(nextUser);
     });
 
     return () => {
@@ -156,8 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }, [configured]);
 
-  const role = resolveUserRole(user?.email, profile?.role);
-  const admin = isAdminUser(user?.email, profile?.role);
+  const authEmail = getAuthEmail(user, profile);
+  const role = resolveUserRole(authEmail, profile?.role);
+  const admin = isAdminUser(authEmail, profile?.role);
 
   const value = useMemo<AuthContextValue>(
     () => ({

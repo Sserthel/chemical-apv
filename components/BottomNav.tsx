@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getAuthEmail } from "@/lib/auth/email";
+import { isAdminUser } from "@/lib/auth/roles";
 import { useAuth } from "@/context/AuthContext";
 
 const baseLinks = [
@@ -11,7 +13,9 @@ const baseLinks = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { isAdmin, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
+  const authEmail = getAuthEmail(user, profile);
+  const showAdmin = isAdminUser(authEmail, profile?.role);
 
   if (pathname === "/login") {
     return null;
@@ -19,7 +23,7 @@ export function BottomNav() {
 
   const links = [
     ...baseLinks,
-    isAdmin
+    showAdmin
       ? { href: "/admin", label: "Admin", icon: "⚙️" }
       : { href: "/medarbejder", label: "Sikkerhed", icon: "👷" },
   ];
@@ -30,7 +34,7 @@ export function BottomNav() {
       aria-label="Hovednavigation"
     >
       <div className="mx-auto flex max-w-lg">
-        {loading ? (
+        {loading && !user ? (
           <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-xs text-gray-500">
             Indlæser…
           </div>

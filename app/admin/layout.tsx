@@ -1,6 +1,7 @@
 "use client";
 
 import { AccessDenied } from "@/components/AccessDenied";
+import { getAuthEmail } from "@/lib/auth/email";
 import { useAuth } from "@/context/AuthContext";
 
 export default function AdminLayout({
@@ -8,7 +9,8 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { loading, isAdmin, user, roleDisplay } = useAuth();
+  const { loading, isAdmin, user, profile, roleDisplay } = useAuth();
+  const authEmail = getAuthEmail(user, profile);
 
   if (loading) {
     return (
@@ -32,7 +34,7 @@ export default function AdminLayout({
   if (!isAdmin) {
     return (
       <AccessDenied
-        message="Du har ikke adgang til denne side."
+        message={`Du har ikke adgang til administration. Logget ind som ${authEmail ?? "ukendt e-mail"}.`}
         backHref="/medarbejder"
         backLabel="Til medarbejdervisning"
       />
