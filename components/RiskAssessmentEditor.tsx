@@ -163,7 +163,7 @@ export function RiskAssessmentEditor({ id }: RiskAssessmentEditorProps) {
             onClick={() => {
               if (
                 confirm(
-                  "Publicer? Medarbejdere kan herefter se denne risikovurdering. Evt. tidligere publiceret version for samme produkt sættes til «Klar til gennemgang»."
+                  "Publicer? Medarbejdere på alle enheder kan herefter se instruktionen (gemmes i skyen). Evt. tidligere publiceret version for samme produkt sættes til «Klar til gennemgang»."
                 )
               ) {
                 const next = { ...draft, status: "publiceret" as const };

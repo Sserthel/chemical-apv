@@ -3,25 +3,24 @@
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { RiskBadge } from "@/components/RiskBadge";
+import { chemicalFromAssessment } from "@/lib/chemical-from-assessment";
 import { useChemicalStore } from "@/context/ChemicalStoreContext";
 import { buildSafetyContext } from "@/lib/safety-symbols";
 
 export function MedarbejderIndexView({ embedded = false }: { embedded?: boolean }) {
-  const { hydrated, allChemicals, riskAssessments } = useChemicalStore();
+  const { hydrated, syncing, riskAssessments } = useChemicalStore();
 
-  const published = allChemicals
-    .map((c) => {
-      const ra = riskAssessments.find(
-        (a) => a.chemicalId === c.id && a.status === "publiceret"
-      );
-      if (!ra) return null;
-      const safety = buildSafetyContext(c, ra);
-      return { chemical: c, riskLevel: safety.riskLevel };
-    })
-    .filter(Boolean) as {
-    chemical: (typeof allChemicals)[0];
-    riskLevel: ReturnType<typeof buildSafetyContext>["riskLevel"];
-  }[];
+  const published = riskAssessments
+    .filter((a) => a.status === "publiceret")
+    .map((ra) => {
+      const chemical = chemicalFromAssessment(ra);
+      const safety = buildSafetyContext(chemical, ra);
+      return { chemical, ra, riskLevel: safety.riskLevel };
+    });
+
+  const uniquePublished = Array.from(
+    new Map(published.map((p) => [p.ra.chemicalId, p])).values()
+  );
 
   return (
     <div className={embedded ? "" : "min-h-screen bg-gray-50 pb-8"}>
@@ -33,9 +32,9 @@ export function MedarbejderIndexView({ embedded = false }: { embedded?: boolean 
           Korte sikkerhedsinstruktioner til arbejdet – kun publicerede kemiske APV&apos;er.
         </p>
 
-        {!hydrated ? (
+        {!hydrated || syncing ? (
           <p className="text-gray-500">Indlæser…</p>
-        ) : published.length === 0 ? (
+        ) : uniquePublished.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center">
             <p className="text-gray-600">
               Ingen kemikalier er frigivet til medarbejdere endnu.
@@ -46,7 +45,7 @@ export function MedarbejderIndexView({ embedded = false }: { embedded?: boolean 
           </div>
         ) : (
           <ul className="space-y-3">
-            {published.map(({ chemical, riskLevel }) => (
+            {uniquePublished.map(({ chemical, riskLevel }) => (
               <li key={chemical.id}>
                 <Link
                   href={`/medarbejder/${chemical.id}`}
